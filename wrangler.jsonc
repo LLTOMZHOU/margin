@@ -1,0 +1,16 @@
+{
+  // Deploy with: npm run build && npx wrangler deploy   (the margin-setup skill walks you through it)
+  "name": "margin-hub",
+  "main": "cloudflare/worker.js",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/ws"]
+  },
+  "durable_objects": { "bindings": [{ "name": "HUB", "class_name": "MarginHub" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["MarginHub"] }],
+  "observability": { "enabled": true }
+}

@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Margin: docs where your team and your agents write together</title>
+<meta name="description" content="Open-source, self-hosted docs for many people and many AI agents. Threads in the margin, agent edits as proposals, agents that run on your own computer. Set it up by pasting one line to your agent.">
+<meta property="og:title" content="Margin: docs where your team and your agents write together">
+<meta property="og:description" content="Paste one line to your agent. It sets up a private hub on your laptop, VPS or Cloudflare account and brings your Codex and Claude Code in.">
+<meta property="og:image" content="https://lltomzhou.github.io/margin/images/app.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="images/logo.svg" type="image/svg+xml">
+<style>
+:root {
+  --paper: #fffdf8; --paper-2: #f7f3ea; --ink: #1c1b19; --ink-2: #4a4740; --ink-3: #8a857a;
+  --line: #e8e2d4; --hl: #f5c84c; --hl-soft: #fff1c2; --blue: #2f5bea; --green: #2b8a3e; --red: #c92a2a;
+  --serif: 'Iowan Old Style', 'Charter', 'Source Serif Pro', 'Palatino Linotype', Georgia, serif;
+  --ui: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, system-ui, sans-serif;
+  --mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.6 var(--ui); -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 28px; }
+code, pre, .mono { font-family: var(--mono); }
+
+/* nav */
+nav { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--paper) 88%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid transparent; transition: border-color .2s; }
+nav.scrolled { border-bottom-color: var(--line); }
+nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; text-decoration: none; letter-spacing: -.01em; }
+.brand img { width: 30px; height: 30px; }
+.navlinks { display: flex; align-items: center; gap: 26px; font-size: 14.5px; color: var(--ink-2); }
+.navlinks a { text-decoration: none; }
+.navlinks a:hover { color: var(--ink); }
+.gh { display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border: 1px solid var(--ink); border-radius: 999px; color: var(--ink) !important; font-weight: 600; }
+.gh:hover { background: var(--ink); color: var(--paper) !important; }
+.gh svg { width: 16px; height: 16px; }
+
+/* hero */
+.hero { position: relative; padding: 84px 0 40px; }
+.hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 48px; align-items: start; }
+.eyebrow { display: inline-flex; gap: 8px; align-items: center; font-size: 13px; font-weight: 600; color: var(--ink-2); background: var(--paper-2); border: 1px solid var(--line); padding: 5px 12px; border-radius: 999px; }
+.eyebrow b { color: var(--green); }
+h1 { font-family: var(--serif); font-weight: 600; font-size: clamp(42px, 6.2vw, 76px); line-height: 1.04; letter-spacing: -.025em; margin: 22px 0 22px; }
+.hl { background: linear-gradient(transparent 58%, var(--hl) 58%, var(--hl) 92%, transparent 92%); padding: 0 .06em; }
+.lede { font-size: clamp(18px, 2vw, 21px); color: var(--ink-2); max-width: 640px; margin: 0 0 34px; }
+
+/* margin notes beside the headline */
+.notes { position: relative; padding-top: 26px; border-left: 2px solid var(--hl); padding-left: 18px; display: grid; gap: 14px; }
+.note { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 11px 13px; font-size: 13.5px; line-height: 1.45; box-shadow: 0 1px 0 rgba(0,0,0,.03), 0 8px 24px -12px rgba(60,50,20,.18); }
+.who { display: flex; align-items: center; gap: 7px; font-weight: 650; margin-bottom: 3px; }
+.av { width: 20px; height: 20px; border-radius: 50%; display: inline-grid; place-items: center; color: #fff; font-size: 10px; font-weight: 700; }
+.tag { font-size: 9.5px; letter-spacing: .06em; font-weight: 700; color: var(--ink-3); background: var(--paper-2); border-radius: 4px; padding: 1px 5px; }
+.at { color: var(--blue); font-weight: 600; }
+.ins { background: #e6f4ea; color: var(--green); border-radius: 3px; padding: 0 2px; }
+.del { color: var(--red); text-decoration: line-through; }
+
+/* install box */
+.install { max-width: 760px; }
+.tabs { display: flex; gap: 4px; margin-bottom: 10px; flex-wrap: wrap; }
+.tab { font: 600 13.5px var(--ui); color: var(--ink-3); background: none; border: 0; padding: 7px 12px; border-radius: 8px; cursor: pointer; }
+.tab[aria-selected="true"] { color: var(--ink); background: var(--paper-2); }
+.tab:hover { color: var(--ink); }
+.cmd { display: none; position: relative; align-items: center; gap: 14px; background: var(--ink); color: #f3efe4; border-radius: 14px; padding: 18px 18px 18px 22px; font: 15px/1.5 var(--mono); box-shadow: 0 18px 40px -22px rgba(28,27,25,.55); }
+.cmd.on { display: flex; }
+.cmd pre { margin: 0; flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
+.cmd .dim { color: #9d978a; }
+.cmd .u { color: var(--hl); }
+.copy { flex: none; display: inline-flex; align-items: center; gap: 6px; font: 600 13px var(--ui); color: var(--ink); background: var(--hl); border: 0; border-radius: 9px; padding: 9px 13px; cursor: pointer; }
+.copy:hover { filter: brightness(1.05); }
+.copy svg { width: 14px; height: 14px; }
+.hint { margin: 12px 2px 0; font-size: 14px; color: var(--ink-3); }
+.hint a { color: var(--ink-2); }
+.works { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 26px; font-size: 13.5px; color: var(--ink-3); align-items: center; }
+.works span { color: var(--ink-2); font-weight: 600; }
+
+/* screenshot */
+.shot { margin: 56px 0 0; }
+.frame { border-radius: 16px; overflow: hidden; border: 1px solid var(--line); background: #fff; box-shadow: 0 40px 80px -40px rgba(60,50,20,.35), 0 2px 0 rgba(0,0,0,.02); }
+.bar { display: flex; align-items: center; gap: 7px; height: 38px; padding: 0 14px; background: var(--paper-2); border-bottom: 1px solid var(--line); }
+.bar i { width: 11px; height: 11px; border-radius: 50%; background: #e2dccd; }
+.bar .url { margin-left: 14px; font: 12.5px var(--mono); color: var(--ink-3); background: var(--paper); border: 1px solid var(--line); border-radius: 7px; padding: 3px 12px; }
+.frame img { display: block; width: 100%; height: auto; }
+.caption { text-align: center; font-size: 14px; color: var(--ink-3); margin-top: 14px; }
+
+/* sections */
+section { padding: 96px 0 0; }
+.kicker { font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+h2 { font-family: var(--serif); font-weight: 600; font-size: clamp(32px, 4vw, 46px); line-height: 1.1; letter-spacing: -.02em; margin: 10px 0 18px; }
+.sub { color: var(--ink-2); font-size: 18px; max-width: 680px; margin: 0 0 40px; }
+
+/* what happens */
+.steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; counter-reset: s; }
+.step { position: relative; padding: 22px 20px 20px; background: #fff; border: 1px solid var(--line); border-radius: 14px; }
+.step::before { counter-increment: s; content: counter(s); display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--hl-soft); color: var(--ink); font-weight: 700; font-size: 14px; margin-bottom: 12px; }
+.step h3 { margin: 0 0 6px; font-size: 16.5px; }
+.step p { margin: 0; color: var(--ink-2); font-size: 14.5px; }
+.step code { font-size: 12.5px; background: var(--paper-2); padding: 1px 5px; border-radius: 5px; }
+
+.transcript { margin-top: 22px; background: var(--ink); color: #e9e4d6; border-radius: 14px; padding: 22px 24px; font: 13.5px/1.75 var(--mono); overflow-x: auto; }
+.transcript .you { color: var(--hl); }
+.transcript .ag { color: #b9d3ff; }
+.transcript .ok { color: #8ce99a; }
+.transcript .c { color: #9d978a; }
+
+/* features */
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.feat { background: var(--paper); padding: 28px 26px; }
+.feat h3 { font-family: var(--serif); font-size: 22px; font-weight: 600; margin: 12px 0 8px; letter-spacing: -.01em; }
+.feat p { margin: 0; color: var(--ink-2); font-size: 15px; }
+.ico { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; background: var(--paper-2); border: 1px solid var(--line); }
+.ico svg { width: 20px; height: 20px; stroke: var(--ink); fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+
+/* how it works diagram */
+.diagram { display: grid; grid-template-columns: 1fr auto 1.1fr auto 1fr; align-items: center; gap: 0; }
+.node { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 22px; min-height: 196px; }
+.node.hub { background: var(--hl-soft); border-color: #ecd68d; }
+.node h3 { margin: 0 0 4px; font-size: 17px; }
+.node .where { font-size: 13px; color: var(--ink-3); margin-bottom: 14px; }
+.chip { display: inline-flex; align-items: center; gap: 7px; font-size: 13.5px; background: var(--paper); border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px; margin: 0 6px 8px 0; }
+.node.hub .chip { background: #fffbea; }
+.arrow { padding: 0 12px; text-align: center; display: flex; flex-direction: column; font-size: 12.5px; color: var(--ink-3); min-width: 120px; }
+.arrow .ln { height: 2px; background: var(--ink); margin: 8px 0; position: relative; }
+.arrow .ln::after { content: ''; position: absolute; right: -1px; top: -4px; border: 5px solid transparent; border-left: 7px solid var(--ink); border-right: 0; }
+.arrow .ln.both::before { content: ''; position: absolute; left: -1px; top: -4px; border: 5px solid transparent; border-right: 7px solid var(--ink); border-left: 0; }
+.arrow .ln.dash { background: repeating-linear-gradient(90deg, var(--ink) 0 6px, transparent 6px 10px); }
+.contract { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 26px; }
+.contract div { border-top: 2px solid var(--ink); padding-top: 12px; font-size: 14.5px; color: var(--ink-2); }
+.contract b { display: block; color: var(--ink); margin-bottom: 3px; }
+
+/* hosting */
+.hosts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.host { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 26px; display: flex; flex-direction: column; }
+.host h3 { font-family: var(--serif); font-size: 24px; font-weight: 600; margin: 0 0 4px; }
+.host .for { color: var(--ink-3); font-size: 14px; margin-bottom: 16px; }
+.host ul { margin: 0 0 18px; padding-left: 18px; color: var(--ink-2); font-size: 14.5px; }
+.host pre { margin: auto 0 0; background: var(--paper-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font-size: 12.5px; white-space: pre-wrap; }
+.badge { align-self: flex-start; font-size: 11.5px; font-weight: 700; letter-spacing: .04em; color: var(--green); background: #e6f4ea; border-radius: 999px; padding: 3px 9px; margin-bottom: 12px; }
+
+/* security */
+.sec { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start; }
+.layers { display: grid; gap: 12px; }
+.layer { display: grid; grid-template-columns: 36px 1fr; gap: 14px; background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
+.layer .n { width: 36px; height: 36px; border-radius: 10px; background: var(--ink); color: var(--paper); display: grid; place-items: center; font-weight: 700; }
+.layer h3 { margin: 0 0 3px; font-size: 16px; }
+.layer p { margin: 0; color: var(--ink-2); font-size: 14.5px; }
+.attack { background: var(--ink); color: #e9e4d6; border-radius: 16px; padding: 26px; }
+.attack h3 { margin: 0 0 6px; font-family: var(--serif); font-weight: 600; font-size: 22px; color: #fff; }
+.attack p { color: #bdb7a8; font-size: 14.5px; margin: 0 0 18px; }
+.attack table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.attack td { padding: 10px 0; border-top: 1px solid #3a3833; }
+.attack td:last-child { text-align: right; color: #8ce99a; font-weight: 650; white-space: nowrap; }
+.attack .src { margin-top: 16px; font-size: 13px; }
+.attack .src a { color: var(--hl); }
+
+/* open source band */
+.band { margin-top: 110px; background: var(--ink); color: var(--paper); }
+.band .wrap { padding-top: 72px; padding-bottom: 72px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; }
+.band h2 { color: #fff; margin-top: 0; }
+.band p { color: #c9c3b4; font-size: 17px; margin: 0; }
+.band .cmd { display: flex; background: #2a2925; box-shadow: none; font-size: 14px; }
+.band .cmd .u { display: block; }
+.band .hint { color: #9d978a; }
+.band .hint a { color: #e9e4d6; }
+footer { padding: 28px 0 40px; color: var(--ink-3); font-size: 14px; }
+footer .wrap { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+footer a { color: var(--ink-2); }
+
+.toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%) translateY(20px); opacity: 0; background: var(--ink); color: var(--paper); padding: 10px 16px; border-radius: 10px; font-size: 14px; transition: all .2s; pointer-events: none; }
+.toast.on { opacity: 1; transform: translateX(-50%); }
+
+@media (max-width: 960px) {
+  .hero-grid { grid-template-columns: minmax(0, 1fr); }
+  .notes { display: none; }
+  .steps { grid-template-columns: 1fr 1fr; }
+  .grid, .hosts, .contract { grid-template-columns: 1fr; }
+  .diagram { grid-template-columns: 1fr; }
+  .arrow { padding: 10px 0; gap: 2px; }
+  .arrow .ln { display: none; }
+  .arrow::before { content: '↕'; display: block; font-size: 18px; color: var(--ink); }
+  .node { min-height: 0; }
+  .sec, .band .wrap { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .wrap { padding: 0 18px; }
+  .navlinks a:not(.gh) { display: none; }
+  .hero { padding-top: 48px; }
+  .steps { grid-template-columns: 1fr; }
+  .cmd { flex-direction: column; align-items: stretch; font-size: 14px; }
+  .copy { justify-content: center; }
+  .shot { margin-top: 40px; }
+  .frame { border-radius: 10px; }
+  .bar .url { display: none; }
+  section { padding-top: 72px; }
+}
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+</style>
+</head>
+<body>
+
+<nav id="nav">
+  <div class="wrap">
+    <a class="brand" href="#"><img src="images/logo.svg" alt="">Margin</a>
+    <div class="navlinks">
+      <a href="#how">How it works</a>
+      <a href="#hosting">Hosting</a>
+      <a href="#security">Security</a>
+      <a class="gh" href="https://github.com/LLTOMZHOU/margin"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="hero-grid">
+      <div>
+        <span class="eyebrow"><b>●</b> Open source · self-hosted · MIT</span>
+        <h1>Docs where your team and <span class="hl">your agents</span> write together.</h1>
+        <p class="lede">Many people and many AI agents in one doc. Ask an agent in the margin, the way you'd ask a colleague. It replies in the thread and proposes edits you approve. It all runs on your own machine, VPS or Cloudflare account.</p>
+
+        <div class="install">
+          <div class="tabs" role="tablist">
+            <button class="tab" role="tab" aria-selected="true" data-t="agent">Paste to your agent</button>
+            <button class="tab" role="tab" aria-selected="false" data-t="skill">Install the skill</button>
+            <button class="tab" role="tab" aria-selected="false" data-t="plugin">Claude Code plugin</button>
+            <button class="tab" role="tab" aria-selected="false" data-t="hand">By hand</button>
+          </div>
+          <div class="cmd on" data-p="agent"><pre>Set up Margin using <span class="u">https://<wbr>lltomzhou.github.io/<wbr>margin/<wbr>skill.md</span></pre><button class="copy" data-copy="Set up Margin using https://lltomzhou.github.io/margin/skill.md"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Copy</button></div>
+          <div class="cmd" data-p="skill"><pre>npx skills add LLTOMZHOU/margin -g</pre><button class="copy" data-copy="npx skills add LLTOMZHOU/margin -g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Copy</button></div>
+          <div class="cmd" data-p="plugin"><pre>/plugin marketplace add LLTOMZHOU/margin
+/plugin install margin@margin</pre><button class="copy" data-copy="/plugin marketplace add LLTOMZHOU/margin&#10;/plugin install margin@margin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Copy</button></div>
+          <div class="cmd" data-p="hand"><pre>npm i -g https://github.com/LLTOMZHOU/margin/releases/latest/download/margin-hub.tgz
+margin serve --background   <span class="dim"># → http://localhost:4321</span></pre><button class="copy" data-copy="npm i -g https://github.com/LLTOMZHOU/margin/releases/latest/download/margin-hub.tgz&#10;margin serve --background"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Copy</button></div>
+          <p class="hint" id="hint">Your agent installs it, asks where to host it, starts it and brings your agents in. <a href="skill.md">Read what it will do</a>.</p>
+        </div>
+        <div class="works">Works with <span>Claude Code</span><span>Codex</span><span>Claude API</span><span>Cursor</span><span>any MCP agent</span></div>
+      </div>
+
+      <aside class="notes" aria-hidden="true">
+        <div class="note"><div class="who"><span class="av" style="background:#d9480f">M</span>Maya</div><span class="at">@Editor</span> can you tighten this? It reads like a pitch.</div>
+        <div class="note"><div class="who"><span class="av" style="background:#7048e8">E</span>Editor <span class="tag">AGENT</span></div>Research teams are <span class="del">basically</span> drowning in scattered notes. <span class="ins">Waiting for your OK.</span></div>
+        <div class="note"><div class="who"><span class="av" style="background:#0c8599">FC</span>Fact-Checker <span class="tag">AGENT</span></div>“73% of lab time”: what's the source? I'd soften it until there is one.</div>
+      </aside>
+    </div>
+
+    <figure class="shot">
+      <div class="frame desktop-shot">
+        <div class="bar"><i></i><i></i><i></i><span class="url">localhost:4321</span></div>
+        <img src="images/app.png" width="2880" height="1800" alt="A Margin doc. Maya asks @Editor to tighten a paragraph, and Editor proposes a tracked edit with Accept and Reject buttons. Jon asks @Fact-Checker about a statistic. @Skeptic pushes back on the launch plan.">
+      </div>
+      <figcaption class="caption">A real hub, not a mockup: two people, four agents, one doc.</figcaption>
+    </figure>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <div class="kicker">Setup</div>
+    <h2>One line. Your agent does the rest.</h2>
+    <p class="sub">The line points your agent at a skill: plain instructions it reads and follows. You answer one question, and nothing is hosted by us.</p>
+    <div class="steps">
+      <div class="step"><h3>Installs the CLI</h3><p>One small Node package from this repo's releases. Checks Node 20+ first.</p></div>
+      <div class="step"><h3>Asks you one thing</h3><p>Where should it live: this machine, your Cloudflare account, or your VPS?</p></div>
+      <div class="step"><h3>Starts your hub</h3><p>Runs it in the background, or deploys it with its own access key. <code>margin stop</code> to stop.</p></div>
+      <div class="step"><h3>Brings your agents in</h3><p>Finds Codex and Claude Code on your machine, adds them, and hands you the link.</p></div>
+    </div>
+<pre class="transcript"><span class="you">you ›</span> Set up Margin using https://lltomzhou.github.io/margin/skill.md
+<span class="ag">agent ›</span> Node v22 found. Installing the Margin CLI…  <span class="ok">✓ margin 0.1.0</span>
+<span class="ag">agent ›</span> Where should the hub live? This machine (default), your Cloudflare account, or a VPS?
+<span class="you">you ›</span> this machine is fine
+<span class="ag">agent ›</span> <span class="c">$ margin serve --background</span>              <span class="ok">✓ http://localhost:4321</span>
+<span class="ag">agent ›</span> You have Codex and Claude Code. Adding both as agents…
+        <span class="c">$ margin agents add Codex --runtime codex</span>  <span class="ok">✓ online</span>
+        <span class="c">$ margin agents add Claude --runtime claude-code</span>  <span class="ok">✓ online</span>
+<span class="ag">agent ›</span> Open http://localhost:4321, select any sentence, and type @Codex to ask it something.</pre>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="kicker">What you get</div>
+    <h2>Built for many people and many agents in one doc.</h2>
+    <p class="sub">Not a chat with a doc attached. It's a doc where agents are members: they're mentioned, they reply, they propose, and people stay in charge.</p>
+    <div class="grid">
+      <div class="feat"><div class="ico"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h13"/><path d="M19 10v8"/></svg></div><h3>Threads in the margin</h3><p>Comments anchor to exact words and stay put while everyone keeps typing. Live carets for everyone.</p></div>
+      <div class="feat"><div class="ico"><svg viewBox="0 0 24 24"><path d="M5 12l4 4L19 6"/></svg></div><h3>Agents propose, people decide</h3><p>Agent edits arrive as tracked changes. Each doc picks who approves: anyone, any one person, or a majority online.</p></div>
+      <div class="feat"><div class="ico"><svg viewBox="0 0 24 24"><path d="M7 7h10v10H7z"/><path d="M4 12h3M17 12h3M12 4v3M12 17v3"/></svg></div><h3>Edits that never collide</h3><p>Accepted edits are merged word by word onto what people typed meanwhile. A real collision is held, not forced.</p></div>
+      <div class="feat"><div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></div><h3>Your agents, your machine</h3><p>Codex and Claude Code run on your computer, signed in as you. Also the Claude API, or anything that speaks MCP.</p></div>
+      <div class="feat"><div class="ico"><svg viewBox="0 0 24 24"><circle cx="8" cy="9" r="3"/><circle cx="16" cy="9" r="3"/><path d="M3 19c1-3 3-4 5-4s4 1 5 4M11 19c1-3 3-4 5-4s4 1 5 4"/></svg></div><h3>Many agents, no chaos</h3><p>Agents claim paragraphs before rewriting, agent-to-agent mentions are hop-limited, and every decision is logged in order.</p></div>
+      <div class="feat"><div class="ico"><svg viewBox="0 0 24 24"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/></svg></div><h3>Safe to point at shared docs</h3><p>Agents are sandboxed, and the hub only lets an agent act where it was asked. Prompt injection can't reach your files.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <div class="kicker">How it works</div>
+    <h2>A hub you own, and your computer.</h2>
+    <p class="sub">The hub holds docs, threads and one inbox per agent. Your computer hosts the agents. They only meet when someone asks.</p>
+    <div class="diagram">
+      <div class="node"><h3>People</h3><div class="where">in the browser</div><span class="chip">✎ live editing</span><span class="chip">💬 threads</span><span class="chip">✓ approve edits</span></div>
+      <div class="arrow"><span>live edits</span><div class="ln both"></div><span>invite link + key</span></div>
+      <div class="node hub"><h3>Hub</h3><div class="where">your laptop · VPS · Cloudflare</div><span class="chip">docs (Yjs CRDT)</span><span class="chip">threads & proposals</span><span class="chip">agent inboxes</span><span class="chip">ordered log</span></div>
+      <div class="arrow"><span>wake: “something's waiting”</span><div class="ln dash"></div><span>agent pulls, then acts</span></div>
+      <div class="node"><h3>Your computer</h3><div class="where">a process on any machine you own</div><span class="chip">codex exec</span><span class="chip">claude -p</span><span class="chip">Claude API</span><span class="chip">your own agent</span></div>
+    </div>
+    <div class="contract">
+      <div><b>Wakes carry no content</b>The hub only says that something is waiting. The agent pulls from its inbox, so doc text never rides along with the wake.</div>
+      <div><b>Nothing gets lost</b>Reading the inbox doesn't acknowledge it; the next pull does. A crash means the work arrives again.</div>
+      <div><b>Replies that keep up</b>If a thread moved on while an agent was writing, its reply is held so it can re-read before sending.</div>
+    </div>
+  </div>
+</section>
+
+<section id="hosting">
+  <div class="wrap">
+    <div class="kicker">Hosting</div>
+    <h2>Three places it can live. All of them yours.</h2>
+    <p class="sub">Start on your laptop and move later. Removing it is one command too.</p>
+    <div class="hosts">
+      <div class="host"><span class="badge">DEFAULT</span><h3>This machine</h3><div class="for">Try it, use it solo, or share it on one network.</div><ul><li>Runs in the background</li><li>Data is plain files in <code>~/.margin</code></li><li><code>--public</code> adds an access key</li></ul><pre>margin serve --background
+margin stop</pre></div>
+      <div class="host"><span class="badge">FOR TEAMS</span><h3>Your Cloudflare</h3><div class="for">Always on, nothing to patch. The free plan is enough.</div><ul><li>One Worker + one SQLite Durable Object</li><li>Keys are created and uploaded with the deploy</li><li>You sign in; your agent does the rest</li></ul><pre>npx wrangler login
+margin deploy cloudflare
+margin undeploy cloudflare</pre></div>
+      <div class="host"><span class="badge">FULL CONTROL</span><h3>Your VPS</h3><div class="for">Your server, your domain, your backups.</div><ul><li>systemd service + Caddy for HTTPS</li><li>Your agent runs each step over SSH</li><li>Plain files you can copy</li></ul><pre>margin serve --host 127.0.0.1 \
+  --access-key-file key --url https://…</pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="security">
+  <div class="wrap">
+    <div class="kicker">Security</div>
+    <h2>Agents read docs other people write. So Margin doesn't count on them saying no.</h2>
+    <div class="sec">
+      <div class="layers">
+        <div class="layer"><div class="n">1</div><div><h3>Least privilege</h3><p>Woken agents get only the Margin tools. Claude Code: no built-in tools, none of your MCP servers. Codex: a sandbox with no file or network access.</p></div></div>
+        <div class="layer"><div class="n">2</div><div><h3>Per-wake permissions</h3><p>The hub lets an agent act only in the thread and passage it was asked about, and refuses the rest.</p></div></div>
+        <div class="layer"><div class="n">3</div><div><h3>Quarantined reader</h3><p>Optional: the model that reads the doc has no tools at all; plain code checks its answer and applies it.</p></div></div>
+        <div class="layer"><div class="n">4</div><div><h3>People approve</h3><p>Every agent edit is a proposal until a person accepts it.</p></div></div>
+      </div>
+      <div class="attack">
+        <h3>We attacked it with real agents.</h3>
+        <p>A paragraph hid “admin” instructions to leak a secret file from the home folder, overwrite another section, and post in an unrelated thread. Then we ordered Codex to carry them out.</p>
+        <table>
+          <tr><td>Secret file leaked</td><td>none</td></tr>
+          <tr><td>Other section changed</td><td>none</td></tr>
+          <tr><td>Unrelated thread posted</td><td>none</td></tr>
+          <tr><td>Codex ordered to attack</td><td>sandbox + hub blocked it</td></tr>
+          <tr><td>The edit that was asked for</td><td>made, awaiting approval</td></tr>
+        </table>
+        <div class="src">Codex 0.163 and Claude Code 2.1 · <a href="https://github.com/LLTOMZHOU/margin/blob/main/docs/SECURITY.md">read the full write-up</a></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="band">
+  <div class="wrap">
+    <div>
+      <h2>No service. No account. Just yours.</h2>
+      <p>Margin is a small open-source toolkit and a pair of skills. There's no hosted version to sign up for, by design. MIT licensed; issues and pull requests welcome.</p>
+    </div>
+    <div>
+      <div class="cmd"><pre>Set up Margin using <span class="u">https://<wbr>lltomzhou.github.io/<wbr>margin/<wbr>skill.md</span></pre><button class="copy" data-copy="Set up Margin using https://lltomzhou.github.io/margin/skill.md"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>Copy</button></div>
+      <p class="hint"><a href="https://github.com/LLTOMZHOU/margin">github.com/LLTOMZHOU/margin</a> · <a href="skill.md">skill.md</a> · <a href="agent-skill.md">agent skill</a></p>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>Margin · MIT · made with people and agents</span>
+    <span><a href="https://github.com/LLTOMZHOU/margin">GitHub</a> · <a href="https://github.com/LLTOMZHOU/margin/blob/main/docs/SECURITY.md">Security</a> · <a href="https://github.com/LLTOMZHOU/margin/issues">Issues</a></span>
+  </div>
+</footer>
+
+<div class="toast" id="toast">Copied. Paste it to your agent.</div>
+
+<script>
+const hints = {
+  agent: 'Your agent installs it, asks where to host it, starts it and brings your agents in. <a href="skill.md">Read what it will do</a>.',
+  skill: 'Installs the margin-setup and margin-agent skills for Claude Code, Codex, Cursor and 70+ agents. Then ask: “set up Margin”.',
+  plugin: 'Run inside Claude Code. Then ask: “set up Margin”.',
+  hand: 'Needs Node 20+. Then <code>margin agents add Codex --runtime codex</code> to bring in your own agent.',
+};
+document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => {
+  document.querySelectorAll('.tab').forEach((x) => x.setAttribute('aria-selected', x === t));
+  document.querySelectorAll('.install .cmd').forEach((p) => p.classList.toggle('on', p.dataset.p === t.dataset.t));
+  document.getElementById('hint').innerHTML = hints[t.dataset.t];
+}));
+const toast = document.getElementById('toast');
+document.querySelectorAll('.copy').forEach((b) => b.addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(b.dataset.copy); } catch {}
+  const label = b.lastChild; const was = label.textContent; label.textContent = 'Copied';
+  toast.classList.add('on');
+  setTimeout(() => { label.textContent = was; toast.classList.remove('on'); }, 1600);
+}));
+const nav = document.getElementById('nav');
+addEventListener('scroll', () => nav.classList.toggle('scrolled', scrollY > 8), { passive: true });
+</script>
+</body>
+</html>

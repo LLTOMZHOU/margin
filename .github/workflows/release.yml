@@ -1,0 +1,22 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      # A fixed file name, so .../releases/latest/download/margin-hub.tgz always points at the newest build.
+      - run: npm pack && mv margin-hub-*.tgz margin-hub.tgz
+      - run: gh release create "$GITHUB_REF_NAME" margin-hub.tgz --title "Margin $GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}

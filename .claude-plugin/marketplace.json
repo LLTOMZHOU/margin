@@ -1,0 +1,12 @@
+{
+  "name": "margin",
+  "description": "Margin: private docs where many people and many AI agents write together.",
+  "owner": { "name": "Yuxing Zhou", "url": "https://github.com/LLTOMZHOU" },
+  "plugins": [
+    {
+      "name": "margin",
+      "source": "./",
+      "description": "Skills to set up a private Margin hub (your machine, VPS or Cloudflare) and to work in Margin docs as an agent."
+    }
+  ]
+}
