@@ -51,12 +51,15 @@ function Mirror({ text, marks, carets, selRef }) {
       continue;
     }
     const top = covering[covering.length - 1];
+    // The first segment of each thread's highlight carries its id, so the margin can line the card up with it.
+    const anchors = covering.filter((m) => m.tid && m.start === at).map((m) => m.tid).join(' ');
     out.push(
       <span
         key={'s' + at}
         ref={top.cls.includes('self-sel') && at === top.start ? selRef : undefined}
         className={'mark ' + covering.map((m) => m.cls).join(' ')}
         style={{ '--c': top.color }}
+        data-anchor={anchors || undefined}
       >
         {seg}
       </span>,
@@ -71,7 +74,7 @@ function Mirror({ text, marks, carets, selRef }) {
 }
 
 export const BlockEditor = forwardRef(function BlockEditor(
-  { block, ydoc, marks, carets, placeholder, onKeyDown, onSelection, onFocusChange, onTypeShortcut, selRef },
+  { block, ydoc, marks, carets, placeholder, onKeyDown, onSelection, onFocusChange, onTypeShortcut, onCaretClick, selRef },
   ref,
 ) {
   const ytext = block.get('text');
@@ -158,7 +161,11 @@ export const BlockEditor = forwardRef(function BlockEditor(
         onKeyDown={(e) => onKeyDown?.(e, ta.current)}
         onSelect={reportSel}
         onKeyUp={reportSel}
-        onMouseUp={reportSel}
+        onMouseUp={() => {
+          reportSel();
+          const el = ta.current;
+          if (el && el.selectionStart === el.selectionEnd) onCaretClick?.(el.selectionStart);
+        }}
         onFocus={() => {
           onFocusChange?.(true);
           reportSel();

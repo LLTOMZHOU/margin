@@ -69,7 +69,7 @@ async function shot(name, { width, height, scale = 2, setup } = {}) {
   await cdp('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: scale, mobile: width < 700 });
   await cdp('Page.navigate', { url: `http://localhost:${PORT}/?as=Lena` });
   await sleep(2500);
-  if (setup) await evalJs(setup), await sleep(1200);
+  if (setup) console.log('setup:', await evalJs(setup)), await sleep(600);
   const { result } = await cdp('Page.captureScreenshot', { format: 'png' });
   fs.writeFileSync(path.join(out, name), Buffer.from(result.data, 'base64'));
   console.log('wrote', path.join(out, name));
@@ -77,7 +77,7 @@ async function shot(name, { width, height, scale = 2, setup } = {}) {
 
 await cdp('Page.enable');
 await cdp('Runtime.enable');
-const openFirstThread = `(() => { const t = document.querySelector('.thread-card'); t && t.click(); return !!t; })()`;
+const openFirstThread = `(async () => { await new Promise((r) => setTimeout(r, 1500)); const g = document.querySelector('.mcard.group'); if (g) g.click(), await new Promise((r) => setTimeout(r, 600)); const t = document.querySelector('.mcard:not(.group)'); t && t.click(); await new Promise((r) => setTimeout(r, 900)); return !!document.querySelector('.mcard.active'); })()`;
 await shot('app.png', { width: 1440, height: 900, setup: openFirstThread });
 
 ws.close();

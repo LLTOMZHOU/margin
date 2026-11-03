@@ -7,3 +7,4 @@ site/_site
 *.tgz
 .DS_Store
 .claude/settings.local.json
+.oil-ui/

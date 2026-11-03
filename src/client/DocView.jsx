@@ -1,6 +1,7 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { MessageSquarePlus, MessageSquare } from 'lucide-react';
 import { BlockEditor, LOCAL } from './BlockEditor.jsx';
-import { useY, useDocEvent, initials } from './hooks.js';
+import { useY, useDocEvent } from './hooks.js';
 import { ProposalCard } from './Proposals.jsx';
 import { blocksOf, threadsOf, proposalsOf, logOf, metaOf, makeBlock, findBlock, encodeRel, resolveRel, BLOCK_TYPES } from '../shared/schema.js';
 
@@ -14,7 +15,8 @@ const SHORTCUTS = [
   [/^```/, 'code'],
 ];
 
-export function DocView({ client, doc, space, me, activeThreadId, setActiveThreadId, onStartComment, toast }) {
+export function DocView({ client, doc, space, me, activeThreadId, onOpenThread, onStartComment, toast }) {
+  const [expanded, setExpanded] = useState({});
   const ydoc = doc.ydoc;
   const blocks = blocksOf(ydoc);
   useY(blocks);
@@ -96,9 +98,6 @@ export function DocView({ client, doc, space, me, activeThreadId, setActiveThrea
   const proposals = [...proposalsOf(ydoc).values()];
   const pending = proposals.filter((p) => p.status === 'pending' || p.status === 'held');
   const title = metaOf(ydoc).get('title') || '';
-  const policy = metaOf(ydoc).get('policy') || 'one';
-  const humansHere = presence.filter((p) => p.kind === 'human');
-  const agentsHere = presence.filter((p) => p.kind === 'agent');
 
   const split = (b, idx, el) => {
     const i = findBlock(ydoc, b.get('id')).index;
@@ -188,7 +187,7 @@ export function DocView({ client, doc, space, me, activeThreadId, setActiveThrea
       if (s === null || e === null || e <= s) continue;
       const tid = t.get('id');
       const by = t.get('createdBy');
-      marks.push({ start: s, end: e, cls: 'thread' + (tid === activeThreadId ? ' active' : '') + (by?.kind === 'agent' ? ' by-agent' : ''), color: by?.color || '#e8b100' });
+      marks.push({ start: s, end: e, tid, cls: 'thread' + (tid === activeThreadId ? ' active' : '') + (by?.kind === 'agent' ? ' by-agent' : '') });
     }
     for (const p of presence) {
       if (p.kind !== 'human' || p.id === me.id || p.blockId !== id) continue;
@@ -208,8 +207,6 @@ export function DocView({ client, doc, space, me, activeThreadId, setActiveThrea
       .filter((c) => c.index !== null);
   };
 
-  const threadCount = (id) => threads.filter((t) => t.get('blockId') === id && !t.get('resolved')).length;
-
   const items = [];
   const insertsAt = (afterId) => pending.filter((p) => p.kind === 'insert' && (p.afterBlockId || null) === afterId);
   for (const p of insertsAt(null)) items.push(<ProposalCard key={p.id} p={p} ydoc={ydoc} client={client} docId={doc.docId} me={me} inline toast={toast} />);
@@ -218,12 +215,21 @@ export function DocView({ client, doc, space, me, activeThreadId, setActiveThrea
     const type = b.get('type');
     const lease = leases.find((l) => l.blockId === id);
     const blockProps = pending.filter((p) => p.blockId === id && p.kind !== 'insert');
-    const n = threadCount(id);
+    const activeHere = threads.some((t) => t.get('id') === activeThreadId && t.get('blockId') === id);
+    // Clicking into a discussed passage opens its thread (the newest one if several overlap).
+    const threadAt = (pos) =>
+      threads
+        .filter((t) => t.get('blockId') === id && !t.get('resolved'))
+        .filter((t) => {
+          const s = resolveRel(ydoc, t.get('start'));
+          const e = resolveRel(ydoc, t.get('end'));
+          return s !== null && e !== null && s <= pos && pos <= e && e > s;
+        })
+        .sort((a, b) => b.get('createdAt') - a.get('createdAt'))[0];
     items.push(
       <div
         key={id}
-        className={`block t-${type}${lease ? ' leased' : ''}${flash[id] ? ' flash' : ''}`}
-        style={{ '--lease': lease?.color, '--flash': flash[id] }}
+        className={`block t-${type}${lease ? ' leased' : ''}${flash[id] ? ' flash' : ''}${activeHere ? ' has-active' : ''}`}
         data-block={id}
       >
         <div className="gutter">
@@ -255,68 +261,43 @@ export function DocView({ client, doc, space, me, activeThreadId, setActiveThrea
             sendPresence(id, s, e);
           }}
           onFocusChange={(f) => setFocused((cur) => (f ? id : cur === id ? null : cur))}
+          onCaretClick={(pos) => {
+            const t = threadAt(pos);
+            if (t && t.get('id') !== activeThreadId) onOpenThread(t.get('id'), id);
+          }}
         />
+        {lease && (
+          <span className="lease-chip" title="This agent is working on the block; other agents stay off it">
+            <i className="pulse" /> {lease.name} is editing
+          </span>
+        )}
         <div className="block-side">
-          {lease && (
-            <span className="lease-chip" style={{ '--c': lease.color }} title="This agent holds a lease on the block">
-              <i className="pulse" /> {lease.name}
-            </span>
-          )}
-          {n > 0 && (
-            <button
-              className="thread-count"
-              onClick={() => {
-                const t = threads.find((t) => t.get('blockId') === id && !t.get('resolved'));
-                if (t) setActiveThreadId(t.get('id'));
-              }}
-            >
-              💬 {n}
-            </button>
-          )}
-          <button className="comment-btn" title="Comment on this block (⌘⌥M)" onClick={() => startComment(b, 0, 0)}>
-            +💬
+          <button className="icon-btn" title="Comment on this block (⌘⌥M)" aria-label="Comment on this block" onClick={() => startComment(b, 0, 0)}>
+            <MessageSquarePlus className="i" />
           </button>
         </div>
-        {blockProps.map((p) => (
+        {blockProps.slice(0, expanded[id] ? blockProps.length : 1).map((p) => (
           <ProposalCard key={p.id} p={p} ydoc={ydoc} client={client} docId={doc.docId} me={me} inline toast={toast} />
         ))}
+        {blockProps.length > 1 && (
+          <button className="link more-props" onClick={() => setExpanded((x) => ({ ...x, [id]: !x[id] }))}>
+            {expanded[id] ? 'Show fewer suggestions' : `${blockProps.length - 1} more suggestion${blockProps.length > 2 ? 's' : ''} for this paragraph`}
+          </button>
+        )}
       </div>,
     );
     for (const p of insertsAt(id)) items.push(<ProposalCard key={p.id} p={p} ydoc={ydoc} client={client} docId={doc.docId} me={me} inline toast={toast} />);
   });
 
   return (
-    <div className="doc-wrap">
-      <header className="doc-header">
-          <div className="presence">
-            {humansHere.map((p) => (
-              <span key={'h' + p.connId} className="avatar human" style={{ '--c': p.color }} title={`${p.name}${p.id === me.id ? ' (you)' : ''}`}>
-                {initials(p.name)}
-              </span>
-            ))}
-            {agentsHere.map((p) => (
-              <span key={'a' + p.id} className={`avatar agent st-${p.status}`} style={{ '--c': p.color }} title={`${p.name} — ${p.status}${p.detail ? `: ${p.detail}` : ''}`}>
-                {initials(p.name)}
-              </span>
-            ))}
-          </div>
-          <label className="policy" title="Who has to approve an agent's change before it lands">
-            Agent edits:
-            <select value={policy} onChange={(e) => client.rpc('doc.policy', { docId: doc.docId, policy: e.target.value }).catch((er) => toast(er.message))}>
-              {Object.entries(space.policies).map(([k, v]) => (
-                <option key={k} value={k}>
-                  {v}
-                </option>
-              ))}
-            </select>
-          </label>
-      </header>
-        <input
-          className="doc-title"
-          value={title}
-          placeholder="Untitled"
-          onChange={(e) => ydoc.transact(() => metaOf(ydoc).set('title', e.target.value), LOCAL)}
-        />
+    <div className="doc-col">
+      <input
+        className="doc-title"
+        value={title}
+        placeholder="Untitled"
+        aria-label="Doc title"
+        onChange={(e) => ydoc.transact(() => metaOf(ydoc).set('title', e.target.value), LOCAL)}
+      />
       <div className="doc">{doc.synced ? items : <div className="loading">Syncing…</div>}</div>
       {toolbar && (
         <div className="sel-toolbar" style={{ top: toolbar.top, left: toolbar.left }} onMouseDown={(e) => e.preventDefault()}>
@@ -326,13 +307,14 @@ export function DocView({ client, doc, space, me, activeThreadId, setActiveThrea
               if (f) startComment(f.block, sel.start, sel.end);
             }}
           >
-            💬 Comment
+            <MessageSquare className="i" style={{ width: 14, height: 14 }} /> Comment
           </button>
+          {space.agents.length > 0 && <span className="sep" />}
           {space.agents.slice(0, 4).map((a) => (
             <button
               key={a.id}
-              className="ask-chip"
-              style={{ '--c': a.color }}
+              className="ask"
+              title={`Ask @${a.name} about this`}
               onClick={() => {
                 const f = findBlock(ydoc, sel.blockId);
                 if (f) onStartComment({ blockId: sel.blockId, start: sel.start, end: sel.end, quote: f.block.get('text').toString().slice(sel.start, sel.end), mention: a.name });

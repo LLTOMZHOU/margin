@@ -1,30 +1,29 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { FileText, Users, SlidersHorizontal, Plus, Trash2, Sparkles, MoreHorizontal, X, ShieldCheck, Globe } from 'lucide-react';
 import { initials, ago, useNow } from './hooks.js';
 
-const STATUS_TEXT = { online: 'Online', thinking: 'Thinking', working: 'Working', error: 'Error', offline: 'Offline' };
 
 function SetupCommands({ token, agent, origin }) {
-  const root = '<path-to>/margin_project';
   const profile = agent.name.toLowerCase();
   const [tab, setTab] = useState('cli');
   const blocks = {
     cli: [
       `# 1. Save the credential as a profile (paste the token when asked; it stays out of shell history)`,
-      `node ${root}/bin/margin.js login --server ${origin} --profile ${profile}`,
+      `margin login --server ${origin} --profile ${profile}`,
       `# 2. Keep the agent online and wake it on mentions`,
-      `MARGIN_PROFILE=${profile} node ${root}/bin/margin.js bridge --runtime codex`,
+      `MARGIN_PROFILE=${profile} margin bridge --runtime codex`,
       `#    (runtimes: codex · claude-code · claude-api · sim)`,
     ],
     mcp: [
       `# Interactive: let your Codex or Claude Code session be @${agent.name}`,
-      `node ${root}/bin/margin.js login --server ${origin} --profile ${profile}   # paste the token`,
-      `codex mcp add margin --env MARGIN_PROFILE=${profile} -- node ${root}/mcp/server.js`,
-      `claude mcp add margin -e MARGIN_PROFILE=${profile} -- node ${root}/mcp/server.js`,
+      `margin login --server ${origin} --profile ${profile}   # paste the token`,
+      `codex mcp add margin --env MARGIN_PROFILE=${profile} -- margin mcp`,
+      `claude mcp add margin -e MARGIN_PROFILE=${profile} -- margin mcp`,
       `# then: "use the margin-agent skill; check your inbox and keep working"`,
     ],
     sdk: [
       `// Any process: same contract as the CLI`,
-      `import { AgentClient } from '${root}/src/agent/client.js';`,
+      `import { AgentClient } from 'margin-hub/src/agent/client.js';`,
       `const api = new AgentClient({ server: '${origin}', token: process.env.MARGIN_TOKEN });`,
       `let since; for (;;) { const b = await api.inbox(since); /* handle b.data.events */ since = b.data.cursor; }`,
     ],
@@ -167,9 +166,7 @@ function AgentSettings({ client, space, agent, onClose, toast }) {
     <div className="modal" onClick={() => !token && onClose()}>
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
         <h3>
-          <span className="avatar agent" style={{ '--c': agent.color }}>
-            {initials(agent.name)}
-          </span>{' '}
+          <span className="avatar agent">{initials(agent.name)}</span>
           @{agent.name}
         </h3>
         <label>
@@ -187,7 +184,7 @@ function AgentSettings({ client, space, agent, onClose, toast }) {
           </select>
         </label>
         <SafetyControls scope={scope} setScope={setScope} quarantine={quarantine} setQuarantine={setQuarantine} runtime={runtime} />
-        <h4 className="sub">Credentials</h4>
+        <h4 className="sub" style={{ marginTop: 4 }}>Credentials</h4>
         {agent.tokens.map((t) => (
           <div key={t.prefix} className="cred">
             <code>{t.prefix}…</code> <span className="muted small">{t.label}</span>
@@ -225,135 +222,191 @@ function AgentSettings({ client, space, agent, onClose, toast }) {
   );
 }
 
-export function Sidebar({ client, space, me, docId, setDocId, toast, connection }) {
+export function Logo({ className = 'mark' }) {
+  return (
+    <svg className={className} viewBox="0 0 64 64" aria-label="Margin">
+      <rect width="64" height="64" rx="14" fill="#1c1b19" />
+      <rect x="12" y="17" width="24" height="3.5" rx="1.75" fill="#fbf9f4" />
+      <rect x="12" y="26" width="20" height="3.5" rx="1.75" fill="#fbf9f4" opacity=".85" />
+      <rect x="12" y="35" width="24" height="3.5" rx="1.75" fill="#fbf9f4" opacity=".7" />
+      <rect x="12" y="44" width="14" height="3.5" rx="1.75" fill="#fbf9f4" opacity=".55" />
+      <rect x="41" y="13" width="2" height="38" rx="1" fill="#f5c84c" />
+      <path d="M46 22h8a3 3 0 0 1 3 3v5a3 3 0 0 1-3 3h-4l-3 3v-3h-1a3 3 0 0 1-3-3v-5a3 3 0 0 1 3-3z" fill="#f5c84c" />
+    </svg>
+  );
+}
+
+const PANES = [
+  ['docs', FileText, 'Docs'],
+  ['members', Users, 'People and agents'],
+  ['instructions', SlidersHorizontal, 'Space instructions'],
+];
+
+export function Rail({ pane, setPane, me, connection }) {
+  return (
+    <nav className="rail" aria-label="Space">
+      <Logo />
+      {PANES.map(([k, Icon, label]) => (
+        <button key={k} className={`icon-btn ${pane === k ? 'on' : ''}`} title={label} aria-label={label} aria-pressed={pane === k} onClick={() => setPane(pane === k ? null : k)}>
+          <Icon className="i" />
+        </button>
+      ))}
+      <span className="grow" />
+      <span className={`conn-dot ${connection}`} title={connection === 'online' ? 'Connected' : 'Reconnecting…'} />
+      <span className="avatar me" title={`${me.name} (you)`}>
+        {initials(me.name)}
+      </span>
+    </nav>
+  );
+}
+
+function Pane({ title, onClose, children, action }) {
+  useEffect(() => {
+    const f = (e) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', f);
+    return () => window.removeEventListener('keydown', f);
+  }, [onClose]);
+  return (
+    <>
+      <div className="scrim" onClick={onClose} />
+      <section className="flyout" aria-label={title}>
+        <div className="pane-head">
+          <h3>{title}</h3>
+          <span style={{ display: 'flex', gap: 2 }}>
+            {action}
+            <button className="icon-btn" onClick={onClose} aria-label="Close">
+              <X className="i" />
+            </button>
+          </span>
+        </div>
+        <div className="pane-body">{children}</div>
+      </section>
+    </>
+  );
+}
+
+export function DocsPane({ client, space, docId, setDocId, toast, onClose }) {
+  const create = async () => {
+    const r = await client.rpc('doc.create', { title: 'Untitled doc' });
+    setDocId(r.docId);
+    onClose();
+  };
+  return (
+    <Pane
+      title={space.name}
+      onClose={onClose}
+      action={
+        <button className="icon-btn" title="New doc" aria-label="New doc" onClick={create}>
+          <Plus className="i" />
+        </button>
+      }
+    >
+      <div className="pane-label">Docs</div>
+      {space.docs.map((d) => (
+        <div
+          key={d.id}
+          className={`row ${d.id === docId ? 'on' : ''}`}
+          role="button"
+          tabIndex={0}
+          onClick={() => (setDocId(d.id), onClose())}
+          onKeyDown={(e) => e.key === 'Enter' && (setDocId(d.id), onClose())}
+        >
+          <FileText className="i" style={{ color: 'var(--ink-3)' }} />
+          <span className="name">{d.title || 'Untitled'}</span>
+          {space.docs.length > 1 && (
+            <button
+              className="icon-btn hover-only"
+              title="Delete doc"
+              aria-label={`Delete ${d.title || 'Untitled'}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (confirm(`Delete “${d.title || 'Untitled'}” for everyone? This can't be undone.`))
+                  client.rpc('doc.remove', { docId: d.id }).then(() => d.id === docId && setDocId(space.docs.find((x) => x.id !== d.id).id), (er) => toast(er.message));
+              }}
+            >
+              <Trash2 className="i" />
+            </button>
+          )}
+        </div>
+      ))}
+    </Pane>
+  );
+}
+
+export function MembersPane({ client, space, me, docId, toast, onClose }) {
   const now = useNow(5000);
   const [adding, setAdding] = useState(false);
   const [settings, setSettings] = useState(null);
-  const [instr, setInstr] = useState(null);
-  const ask = (a, request) => client.rpc('agent.ask', { docId, agentId: a.id, request }).catch((e) => toast(e.message));
+  const ask = (a, request) =>
+    client.rpc('agent.ask', { docId, agentId: a.id, request }).then(() => toast(a.id === '*' ? 'Asked every agent to review this doc.' : `Asked @${a.name} to review this doc.`), (e) => toast(e.message));
   const humans = space.humans.slice().sort((a, b) => b.online - a.online || b.lastSeen - a.lastSeen);
   return (
-    <aside className="left">
-      <div className="space-head">
-        <div className="space-mark">{initials(space.name)}</div>
-        <div>
-          <div className="space-name">{space.name}</div>
-          <div className={`conn ${connection}`}>{connection === 'online' ? 'Connected' : 'Reconnecting…'}</div>
-        </div>
-      </div>
-
-      <section>
-        <h4>
-          Docs
-          <button
-            className="link"
-            onClick={async () => {
-              const r = await client.rpc('doc.create', { title: 'Untitled doc' });
-              setDocId(r.docId);
-            }}
-          >
-            + New
-          </button>
-        </h4>
-        {space.docs.map((d) => (
-          <div key={d.id} className={`row doc-row ${d.id === docId ? 'on' : ''}`} onClick={() => setDocId(d.id)} role="button">
-            <span className="doc-icon">▤</span>
-            <span className="doc-name">{d.title || 'Untitled'}</span>
-            {space.docs.length > 1 && (
-              <button
-                className="doc-del"
-                title="Delete doc"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (confirm(`Delete “${d.title || 'Untitled'}” for everyone? This can't be undone.`))
-                    client.rpc('doc.remove', { docId: d.id }).then(() => d.id === docId && setDocId(space.docs.find((x) => x.id !== d.id).id), (er) => toast(er.message));
-                }}
-              >
-                ×
-              </button>
-            )}
-          </div>
-        ))}
-      </section>
-
-      <section>
-        <h4>
+    <Pane title="People and agents" onClose={onClose}>
+      <section className="pane-section">
+        <div className="pane-label">
           Agents
           <button className="link" onClick={() => setAdding(true)}>
-            + Add
+            <Plus className="i" style={{ width: 13, height: 13, verticalAlign: -2 }} /> Add
           </button>
-        </h4>
+        </div>
         {space.agents.map((a) => (
-          <div key={a.id} className="agent-row">
-            <span className={`avatar agent st-${a.status}`} style={{ '--c': a.color }}>
-              {initials(a.name)}
+          <div key={a.id} className="row">
+            <span className={`avatar agent st-${a.status}`}>{initials(a.name)}</span>
+            <span className="name">{a.name}</span>
+            {a.quarantine && (
+              <span className="flag" title="Quarantined reader: the model that reads docs has no tools" aria-label="Quarantined reader">
+                <ShieldCheck className="i" />
+              </span>
+            )}
+            {a.scope === 'space' && (
+              <span className="flag" title="Space-wide: may act anywhere in the space, not just where it was asked" aria-label="Space-wide">
+                <Globe className="i" />
+              </span>
+            )}
+            <span className={`meta status st-${a.status}`} title={a.detail || ''}>
+              <i />
+              {a.status === 'offline' ? (a.lastSeen ? ago(a.lastSeen, now) : 'offline') : a.pending > 0 ? `${a.pending} waiting` : a.status}
             </span>
-            <div className="agent-main">
-              <div className="agent-name">
-                {a.name}
-                {a.pending > 0 && <span className="pending">{a.pending}</span>}
-              </div>
-              <div className={`agent-status st-${a.status}`}>
-                <i className="dot" />
-                {STATUS_TEXT[a.status]}
-                {a.detail && ['thinking', 'working', 'error'].includes(a.status) ? ` · ${a.detail}` : ''}
-                {!a.online && a.lastSeen ? ` · ${ago(a.lastSeen, now)}` : ''}
-              </div>
-              <div className="agent-runtime">
-                {a.host === 'external' ? 'external' : `this computer · ${a.runtime}`}
-                {a.quarantine && <span className="tag" title="Quarantined reader: the model that reads docs has no tools">quarantined</span>}
-                {a.scope === 'space' && <span className="tag warn" title="May act anywhere in the space, not just where it was asked">space-wide</span>}
-              </div>
-            </div>
-            <div className="agent-actions">
-              <button className="link" title="Ask this agent to review the open doc" onClick={() => ask(a, 'please review this doc in your specialty.')}>
-                Review
-              </button>
-              <button className="link" title="Settings" onClick={() => setSettings(a)}>
-                ⋯
-              </button>
-            </div>
+            <button className="icon-btn hover-only" title={`Ask @${a.name} to review this doc`} aria-label={`Ask ${a.name} to review`} onClick={() => ask(a, 'please review this doc in your specialty.')}>
+              <Sparkles className="i" />
+            </button>
+            <button className="icon-btn hover-only" title="Settings" aria-label={`${a.name} settings`} onClick={() => setSettings(a)}>
+              <MoreHorizontal className="i" />
+            </button>
           </div>
         ))}
         {space.agents.length > 1 && (
-          <button className="btn ghost full" onClick={() => ask({ id: '*' }, 'please each review this doc in your specialty. Coordinate: one agent per block.')}>
-            ✦ Ask every agent to review
+          <button className="btn quiet sm full" style={{ marginTop: 4, justifyContent: 'flex-start' }} onClick={() => ask({ id: '*' }, 'please each review this doc in your specialty. Coordinate: one agent per block.')}>
+            <Sparkles className="i" /> Ask every agent to review
           </button>
         )}
       </section>
-
-      <section>
-        <h4>People</h4>
+      <section className="pane-section">
+        <div className="pane-label">People</div>
         {humans.map((h) => (
-          <div key={h.id} className="person-row">
-            <span className={`avatar human ${h.online ? '' : 'off'}`} style={{ '--c': h.color }}>
-              {initials(h.name)}
-            </span>
-            <span>
+          <div key={h.id} className="row">
+            <span className={`avatar ${h.id === me.id ? 'me' : ''} ${h.online ? '' : 'off'}`}>{initials(h.name)}</span>
+            <span className="name">
               {h.name}
               {h.id === me.id ? ' (you)' : ''}
             </span>
-            <span className="muted small">{h.online ? 'here' : ago(h.lastSeen, now)}</span>
+            <span className="meta">{h.online ? 'here' : ago(h.lastSeen, now)}</span>
           </div>
         ))}
       </section>
-
-      <section className="instructions">
-        <h4>Space instructions</h4>
-        <textarea
-          rows={6}
-          value={instr ?? space.instructions}
-          onChange={(e) => setInstr(e.target.value)}
-          onBlur={() => {
-            if (instr !== null && instr !== space.instructions) client.rpc('space.instructions', { text: instr }).catch((e) => toast(e.message));
-            setInstr(null);
-          }}
-          placeholder="Context every agent reads before acting: goals, audience, tone, rules."
-        />
-      </section>
-
       {adding && <AddAgent client={client} space={space} onClose={() => setAdding(false)} toast={toast} />}
       {settings && <AgentSettings client={client} space={space} agent={space.agents.find((a) => a.id === settings.id) || settings} onClose={() => setSettings(null)} toast={toast} />}
-    </aside>
+    </Pane>
+  );
+}
+
+export function InstructionsPane({ client, space, toast, onClose }) {
+  const [text, setText] = useState(space.instructions);
+  const save = () => text !== space.instructions && client.rpc('space.instructions', { text }).catch((e) => toast(e.message));
+  return (
+    <Pane title="Space instructions" onClose={() => (save(), onClose())}>
+      <p className="hint">Every agent reads this before it acts: goals, audience, tone, rules.</p>
+      <textarea className="field" rows={14} value={text} onChange={(e) => setText(e.target.value)} onBlur={save} autoFocus style={{ resize: 'vertical' }} />
+    </Pane>
   );
 }
