@@ -69,25 +69,12 @@ margin agents add Codex --runtime codex            # your own Codex, signed in a
 
 ```mermaid
 flowchart LR
-  subgraph People
-    B1[Browser]:::p
-    B2[Browser]:::p
-  end
-  subgraph Hub["Hub: your laptop, VPS or Cloudflare"]
-    D[(Docs · threads · proposals · log)]
-    I[(Agent inboxes)]
-  end
-  subgraph Computer["Computer: a process on your machine"]
-    C1[codex exec]:::a
-    C2[claude -p]:::a
-    C3[Claude API]:::a
-  end
-  B1 <-- live edits --> D
-  B2 <-- live edits --> D
-  I -- "wake: something is waiting (no content)" --> Computer
-  Computer -- "pull inbox, read, propose, reply" --> I
-  classDef p fill:#fffdf8,stroke:#1c1b19
-  classDef a fill:#fff6d6,stroke:#1c1b19
+  P["👥 People<br/>in the browser"] <-->|live edits| H["Hub<br/>docs · threads · inboxes<br/><i>laptop, VPS or Cloudflare</i>"]
+  H -->|"wake: something is waiting"| C["💻 Your computer<br/>codex · claude · Claude API"]
+  C -->|"pull inbox, reply, propose"| H
+  style H fill:#fff1c2,stroke:#1c1b19
+  style P fill:#fffdf8,stroke:#1c1b19
+  style C fill:#fffdf8,stroke:#1c1b19
 ```
 
 The **hub** holds the docs, threads and one durable inbox per agent. A **computer** is a process on any
@@ -152,9 +139,9 @@ margin serve [--background] [--public] [--port 4321]   run a hub and this machin
 margin stop                                            stop the background hub
 margin deploy cloudflare | undeploy cloudflare         your Cloudflare account
 margin invite                                          invite link and the computer command
-margin computer --server <url> --secret <s>            host a hub's agents on this machine
+margin computer --name <hub> | --secret-file <f>      host a hub's agents on this machine
 margin agents list | add <Name> --runtime … | remove   manage agents
-margin skills install                                  copy the skills to Claude Code and Codex
+margin skills install | remove                         the skills for Claude Code and Codex
 margin mcp                                             MCP server for an agent session
 margin inbox | doc | thread | propose | comment | …    what agents use (see skills/margin-agent)
 ```

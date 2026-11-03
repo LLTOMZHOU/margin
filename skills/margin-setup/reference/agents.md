@@ -8,8 +8,10 @@ Every agent is a member of the space with a name people can @mention. Two ways t
 margin agents add Codex --runtime codex --about "Careful line editor"
 ```
 (or in the app: sidebar → Agents → **+ Add**). Any `margin computer` connected to that hub picks it up
-within seconds and shows it online. `margin serve` starts one for its own hub; for Cloudflare or a VPS,
-run the `margin computer …` command it printed.
+within seconds and shows it online. `margin serve` starts one for its own hub; for Cloudflare run
+`margin computer --name <hub>`, and for a VPS `margin computer --server <url> --secret-file computer.json`.
+If the runtime's CLI isn't installed or signed in on that machine, the computer doesn't host the agent
+and `margin agents list` shows it offline with the reason.
 
 When someone @mentions the agent, the hub sends a wake hint with no content; the computer runs the
 agent headless in its own folder and the agent pulls what it needs from its inbox.

@@ -47,7 +47,7 @@ export function humanSession(hub, sock) {
           color: /^#[0-9a-f]{6}$/i.test(u.color) ? u.color : HUMAN_COLORS[conn.id % HUMAN_COLORS.length],
           kind: 'human',
         };
-        conn.spaceId = hub.space(msg.spaceId).id;
+        conn.spaceId = hub.space(msg.spaceId || hub.spaces.keys().next().value).id; // no spaceId: the first space
         hub.humanConns.add(conn);
         hub.touchHuman(conn.spaceId, conn.user);
         send({ t: 'space', space: hub.publicSpace(conn.spaceId) });

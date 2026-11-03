@@ -13,7 +13,7 @@
 //   margin lease claim <doc> <block>... | margin lease release <doc>
 //   margin status <online|thinking|working|error|offline> [detail]
 //   margin bridge --runtime sim|codex|claude-code|claude-api [--quarantine]  keep this agent online and wake it
-//   margin computer --server <url> --secret <s>                    host every local agent of a hub
+//   margin computer --name <deployment> | --server <url> --secret-file <f>   host every local agent of a hub
 //
 // Hosting (your machine, your VPS, or your Cloudflare account — never ours):
 //   margin serve [--host 0.0.0.0] [--port 4321] [--public]         run a hub + this machine's computer
@@ -22,7 +22,7 @@
 //   margin deploy cloudflare [--name margin-hub] [--space "Team"]  deploy a hub to your Cloudflare account
 //   margin undeploy cloudflare [--name margin-hub]                 delete it and its data again
 //   margin invite [--name margin-hub]                              print the invite link and computer command
-//   margin skills install [--for claude|codex|all]                 give your agents the setup skills
+//   margin skills install|remove [--for claude|codex|all]          give your agents the setup skills (or take them back)
 //
 // Managing a hub (this machine's hub by default; --name <deployment> or --server <url> --key-file <f>):
 //   margin agents list
@@ -43,6 +43,7 @@ import { claudeApiRuntime } from '../src/agent/runtimes/claude-api.js';
 import { claudeCodeRuntime } from '../src/agent/runtimes/claude-code.js';
 import { codexRuntime } from '../src/agent/runtimes/codex.js';
 import { quarantinedRuntime } from '../src/agent/runtimes/quarantine.js';
+import { hostEnv } from '../src/agent/runtimes/cli-common.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const RUNTIMES = { sim: simRuntime, 'claude-api': claudeApiRuntime, 'claude-code': claudeCodeRuntime, codex: codexRuntime };
@@ -275,9 +276,38 @@ async function main() {
 }
 
 // Host every local-computer agent of a hub (what `npm run dev` starts next to the server).
+// Can this machine actually run that runtime? An agent that can't answer shouldn't look online.
+function preflight(runtime) {
+  if (runtime === 'claude-api') return process.env.ANTHROPIC_API_KEY ? null : 'ANTHROPIC_API_KEY is not set for this computer';
+  const cmd = { codex: ['codex', ['login', 'status'], 'codex login'], 'claude-code': ['claude', ['auth', 'status'], 'claude auth login'] }[runtime];
+  if (!cmd) return null;
+  const r = spawnSync(cmd[0], cmd[1], { encoding: 'utf8', timeout: 20000, env: hostEnv() });
+  if (r.error?.code === 'ENOENT') return `${cmd[0]} is not installed on this computer`;
+  let ok = r.status === 0;
+  if (ok && runtime === 'claude-code') {
+    try {
+      ok = JSON.parse(r.stdout).loggedIn !== false;
+    } catch {}
+  }
+  return ok ? null : `${cmd[0]} is not signed in on this computer (run \`${cmd[2]}\`)`;
+}
+
 function computer(flags) {
-  if (!flags.server || !flags.secret) die('margin computer --server <url> --secret <secret>');
-  const workspaces = flags.workspaces || path.join(path.resolve(here, '..'), 'data', 'workspaces');
+  let server = typeof flags.server === 'string' ? flags.server : '';
+  let secret = typeof flags.secret === 'string' ? flags.secret : process.env.MARGIN_COMPUTER_SECRET || '';
+  if (typeof flags['secret-file'] === 'string') {
+    const raw = fs.readFileSync(flags['secret-file'], 'utf8').trim();
+    secret = raw.startsWith('{') ? JSON.parse(raw).secret || JSON.parse(raw).secrets?.MARGIN_COMPUTER_SECRET : raw;
+  }
+  if (typeof flags.name === 'string') {
+    const d = readJSON(deploymentFile(flags.name), null);
+    if (!d) die(`No deployment called ${flags.name} on this machine. Copy ~/.margin/deployments/${flags.name}.json here from the machine that deployed it.`);
+    server = server || d.url;
+    secret = secret || d.secrets.MARGIN_COMPUTER_SECRET;
+  }
+  if (!server || !secret) die('margin computer --name <deployment>  |  margin computer --server <url> --secret-file <file>');
+  flags = { ...flags, server, secret };
+  const workspaces = flags.workspaces || path.join(HOME, 'workspaces', typeof flags.name === 'string' ? flags.name : 'local');
   const bridges = new Map();
   const log = (...a) => console.log('[computer]', ...a);
   const connect = () => {
@@ -289,6 +319,12 @@ function computer(flags) {
         const old = bridges.get(m.agent.id);
         bridges.delete(m.agent.id);
         await old?.stop();
+        const problem = preflight(m.agent.runtime);
+        if (problem) {
+          log(`not hosting @${m.agent.name}: ${problem}`);
+          await new AgentClient({ server: flags.server, token: m.token }).status('offline', problem).catch(() => {});
+          return;
+        }
         const runtime = m.agent.quarantine ? quarantinedRuntime(m.agent.runtime) : RUNTIMES[m.agent.runtime] || simRuntime;
         const b = new Bridge({ server: flags.server, token: m.token, agent: m.agent, runtime, log: (...a) => console.log('[computer]', ...a), env: { workspaces } }).start();
         bridges.set(m.agent.id, b);
@@ -329,6 +365,7 @@ function ensureBuilt() {
 
 // Run a hub on this machine (laptop or VPS) plus a computer that hosts its local agents.
 async function serve(flags) {
+  process.umask(0o077); // docs, keys and logs are readable by this user only
   ensureBuilt();
   const host = flags.host || (flags.public ? '0.0.0.0' : '127.0.0.1');
   const port = Number(flags.port || process.env.PORT || 4321);
@@ -349,12 +386,17 @@ async function serve(flags) {
   const local = `http://localhost:${srv.port}`;
   let child = null;
   if (!flags['no-computer']) {
-    child = spawn(process.execPath, [fileURLToPath(import.meta.url), 'computer', '--server', local, '--secret', srv.computerSecret, '--workspaces', path.join(dataDir, 'workspaces')], { stdio: 'inherit' });
+    child = spawn(process.execPath, [fileURLToPath(import.meta.url), 'computer', '--server', local, '--workspaces', path.join(dataDir, 'workspaces')], {
+      stdio: 'inherit',
+      env: { ...process.env, MARGIN_COMPUTER_SECRET: srv.computerSecret }, // not argv: other users can read that with ps
+    });
   }
   const pub = flags.url || (host === '0.0.0.0' ? `http://<this-server>:${srv.port}` : local);
   console.log(`\n  Margin hub running.\n  Open:    ${local}${accessKey ? `/?key=${accessKey}` : ''}`);
   if (accessKey) console.log(`  Invite:  ${pub}/?key=${accessKey}`);
-  console.log(`  Agents on another machine: margin computer --server ${pub} --secret ${srv.computerSecret}\n`);
+  if (host !== '127.0.0.1' && host !== 'localhost')
+    console.log(`  Agents on another machine: copy ${path.join(dataDir, 'computer.json')} there (it holds the computer secret), then\n           margin computer --server ${pub} --secret-file computer.json`);
+  console.log('');
   const stop = async () => {
     child?.kill();
     await srv.close();
@@ -366,12 +408,14 @@ async function serve(flags) {
 
 // `serve` detached from the terminal, so an agent (or you) can start it and carry on.
 async function serveBackground(flags) {
+  process.umask(0o077);
   const pidFile = path.join(HOME, 'serve.pid');
   const old = Number(readJSON(pidFile, 0));
   if (old && alive(old)) die(`A hub is already running (pid ${old}). Stop it with: margin stop`);
   const logFile = path.join(HOME, 'serve.log');
   fs.mkdirSync(HOME, { recursive: true });
-  const out = fs.openSync(logFile, 'w');
+  const out = fs.openSync(logFile, 'w', 0o600);
+  fs.chmodSync(logFile, 0o600);
   const args = process.argv.slice(2).filter((a) => a !== '--background');
   const child = spawn(process.execPath, [fileURLToPath(import.meta.url), ...args], { detached: true, stdio: ['ignore', out, out] });
   child.unref();
@@ -444,18 +488,22 @@ async function deploy(target, flags) {
     ),
   );
   const localWrangler = path.join(ROOT, 'node_modules', 'wrangler', 'bin', 'wrangler.js');
+  const wranglerEnv = { ...process.env, WRANGLER_SEND_METRICS: 'false' };
   const wrangler = (args) =>
     fs.existsSync(localWrangler)
-      ? spawnSync(process.execPath, [localWrangler, ...args], { cwd: work, encoding: 'utf8' })
-      : spawnSync('npx', ['-y', 'wrangler@4', ...args], { cwd: work, encoding: 'utf8' });
-  const who = wrangler(['whoami']);
-  if (who.error) die(`Could not run wrangler: ${who.error.message}`);
-  if (/not authenticated|You are not/i.test(who.stdout + who.stderr))
-    die('Not signed in to Cloudflare. Run `npx wrangler login` (it opens your browser), then run this again.');
+      ? spawnSync(process.execPath, [localWrangler, ...args], { cwd: work, encoding: 'utf8', env: wranglerEnv })
+      : spawnSync('npx', ['-y', 'wrangler@4', ...args], { cwd: work, encoding: 'utf8', env: wranglerEnv });
+  if (!fs.existsSync(localWrangler)) console.log('Using wrangler from npm (the first run downloads it, about 100 MB)…');
+  if (!flags['dry-run']) {
+    const who = wrangler(['whoami']);
+    if (who.error) die(`Could not run wrangler: ${who.error.message}`);
+    if (/not authenticated|You are not/i.test(who.stdout + who.stderr))
+      die('Not signed in to Cloudflare. Run `npx wrangler login` (it opens your browser), then run this again.');
+  }
   const f = deploymentFile(name);
   const prev = readJSON(f, null);
   const secrets = prev?.secrets || { MARGIN_ACCESS_KEY: genSecret(), MARGIN_COMPUTER_SECRET: genSecret() };
-  const tmp = path.join(os.tmpdir(), `margin-secrets-${process.pid}.json`);
+  const tmp = path.join(work, `.secrets-${process.pid}.json`);
   fs.writeFileSync(tmp, JSON.stringify(secrets), { mode: 0o600 });
   const args = ['deploy', '--config', config, '--secrets-file', tmp, '--var', 'MARGIN_SEED:welcome', '--var', `MARGIN_SPACE_NAME:${flags.space || 'Our space'}`];
   if (flags['dry-run']) args.push('--dry-run', '--outdir', path.join(work, 'bundle'));
@@ -494,7 +542,8 @@ function invite(flags) {
   const d = readJSON(deploymentFile(name), null);
   if (!d) die(`No deployment called ${name} on this machine.`);
   console.log(`\n  Hub:      ${d.url}\n  Invite:   ${d.url}/?key=${d.secrets.MARGIN_ACCESS_KEY}   (share only with people you trust)`);
-  console.log(`  Host this hub's agents on this machine:\n            margin computer --server ${d.url} --secret ${d.secrets.MARGIN_COMPUTER_SECRET}\n`);
+  console.log(`  Host this hub's agents on this machine:\n            margin computer --name ${name}`);
+  console.log(`  On another machine: copy ${deploymentFile(name)} to the same place there, then run the same command.\n`);
 }
 
 // Which hub a management command talks to, and with which access key.
@@ -531,10 +580,20 @@ async function agents(sub, rest, flags) {
   });
   const byName = (n) => sp.agents.find((a) => a.name.toLowerCase() === String(n || '').toLowerCase());
   try {
+    await agentsAct();
+  } catch (e) {
+    c.close();
+    die(e.message);
+  } finally {
+    c.close();
+  }
+  async function agentsAct() {
     if (sub === 'list') {
       if (!sp.agents.length) console.log(`No agents in “${sp.name}” yet. Add one: margin agents add Codex --runtime codex`);
       for (const a of sp.agents)
-        console.log(`@${a.name.padEnd(16)} ${a.runtime.padEnd(12)} ${a.online ? 'online ' : 'offline'}  ${a.scope === 'space' ? 'space-wide' : 'only where asked'}${a.quarantine ? ', quarantined' : ''}`);
+        console.log(
+          `@${a.name.padEnd(16)} ${a.runtime.padEnd(12)} ${a.online ? 'online ' : 'offline'}  ${a.scope === 'space' ? 'space-wide' : 'only where asked'}${a.quarantine ? ', quarantined' : ''}${!a.online && a.detail ? `  (${a.detail})` : ''}`,
+        );
     } else if (sub === 'add') {
       const name = rest[0];
       if (!name) die('margin agents add <Name> --runtime codex|claude-code|claude-api|sim|external');
@@ -547,21 +606,23 @@ async function agents(sub, rest, flags) {
         fs.mkdirSync(path.dirname(f), { recursive: true });
         fs.writeFileSync(f, r.token + '\n', { mode: 0o600 });
         console.log(`Its token is in ${f} (mode 600, shown nowhere else). On the machine that runs it:\n  margin login --server ${server} --profile ${name.toLowerCase()} < ${f}\n  MARGIN_PROFILE=${name.toLowerCase()} margin bridge --runtime codex   # or claude-code, or: margin mcp`);
-      } else console.log('Any `margin computer` connected to this hub picks it up within seconds; mention it in a doc to wake it.');
+      } else {
+        const problem = preflight(runtime);
+        if (problem) console.log(`Heads up: ${problem}, so a computer on this machine can't run it yet.`);
+        else console.log('Any `margin computer` connected to this hub picks it up within seconds. To check it answers, mention it in a doc.');
+      }
     } else {
       const a = byName(rest[0]);
       if (!a) die(`No agent @${rest[0]}.`);
       await c.rpc('agent.remove', { agentId: a.id });
       console.log(`Removed @${a.name}.`);
     }
-  } finally {
-    c.close();
   }
 }
 
 // Copy the bundled skills into Claude Code's and Codex's skill folders.
 function skills(sub, flags) {
-  if (sub !== 'install') die('margin skills install [--for claude|codex|all]');
+  if (sub !== 'install' && sub !== 'remove') die('margin skills install|remove [--for claude|codex|all]');
   const which = flags.for || 'all';
   const targets = [];
   if (which === 'claude' || which === 'all') targets.push(path.join(os.homedir(), '.claude', 'skills'));
@@ -569,6 +630,10 @@ function skills(sub, flags) {
   const src = path.join(ROOT, 'skills');
   for (const t of targets) {
     for (const s of fs.readdirSync(src)) {
+      if (sub === 'remove') {
+        if (fs.existsSync(path.join(t, s))) fs.rmSync(path.join(t, s), { recursive: true, force: true }), console.log(`removed ${path.join(t, s)}`);
+        continue;
+      }
       fs.cpSync(path.join(src, s), path.join(t, s), { recursive: true });
       console.log(`installed ${s} → ${path.join(t, s)}`);
     }

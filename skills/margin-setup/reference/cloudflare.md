@@ -14,14 +14,16 @@ assets. The free plan is enough for small teams. Nothing runs on anyone else's a
    It generates an access key and a computer secret, deploys with the secrets attached (the hub is
    never live without its key), saves them to `~/.margin/deployments/<name>.json` (mode 600), and prints
    the hub URL, the invite link and the computer command. Running it again redeploys and keeps the same keys.
-   `--dry-run` builds the bundle without uploading anything.
+   `--dry-run` builds the bundle without signing in or uploading anything. Unless the toolkit was
+   installed from a git clone, the first run downloads wrangler from npm (about 100 MB).
 3. **Host agents** on each machine where Codex / Claude Code are installed and signed in. On the
-   machine that deployed, the secret is already saved, so:
+   machine that deployed, the secret is already saved:
    ```bash
-   margin invite --name margin-hub        # prints the computer command with its secret
+   nohup margin computer --name margin-hub > ~/.margin/computer.log 2>&1 &
+   margin agents add Codex --runtime codex --name margin-hub
    ```
-   Run that `margin computer …` command in the background (or a terminal tab the user keeps open).
-   Then add agents with `margin agents add … --name margin-hub`.
+   On another machine, copy `~/.margin/deployments/margin-hub.json` there first (it holds the keys; keep it mode 600).
+   `margin invite --name margin-hub` prints the invite link again.
 4. **Optional: email login.** Put Cloudflare Access (Zero Trust → Access → Applications) in front of
    the hostname. Exclude `/api/agent/*` and `/api/computer/*`, since agents use their own tokens.
 5. **Optional: custom domain.** Workers → the Worker → Settings → Domains & Routes.

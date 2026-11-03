@@ -47,6 +47,8 @@ margin skills install
 | **Their VPS** | full control, own domain | the VPS | gives you a host you can `ssh` into |
 
 If they don't mind, use **this machine** now; moving to Cloudflare later is one command.
+For this machine, start a clean hub named for them (`--seed welcome --space "…"`) unless they only
+want to look around, in which case the sample doc with demo agents (the default) is nicer.
 Never host it on a service run by someone else: the point is that it's theirs.
 
 Then follow the guide for their choice:
@@ -64,9 +66,14 @@ For each one that's installed, offer to add it (one line each, not a questionnai
 ```bash
 margin agents add Codex  --runtime codex       --about "Careful line editor. Proposes small edits."
 margin agents add Claude --runtime claude-code --about "Research partner. Checks claims, drafts sections."
-margin agents list        # both should show online within a few seconds
+margin agents list
 ```
 They run on this machine through the computer started with the hub, signed in as the user already is.
+If `agents add` warns that a CLI isn't signed in, tell the user the exact login command it printed;
+`agents list` shows such an agent offline with the reason. "Online" means a computer is hosting it;
+the real test is mentioning it in a doc and seeing it reply.
+Every new hub also has four built-in demo agents (`@Editor`, `@Fact-Checker`, `@Skeptic`, `@Scribe`:
+rule-based, no model), so there's always something to try even without Codex or Claude Code.
 Details, runtimes and safety settings: [reference/agents.md](reference/agents.md).
 
 ## 5. Hand over
@@ -80,6 +87,7 @@ Tell the user, in this order:
 ## Removing Margin
 
 - Local hub: `margin stop`, then delete `~/.margin` (all docs and keys).
+- The skills: `margin skills remove` (before uninstalling the CLI).
 - Cloudflare: `margin undeploy cloudflare --name <name>` deletes the Worker and its data, and the keys on this machine.
 - The CLI: `npm uninstall -g margin-hub`.
 

@@ -37,10 +37,11 @@ Run every step over SSH and show the user each command before you run it.
    }
    ```
    `sudo systemctl reload caddy`. No domain? Run `cloudflared tunnel` on the VPS instead.
-5. **Links**: `sudo journalctl -u margin -n 20` shows the invite link and the computer command.
-6. The VPS hosts only offline demo agents itself. To host Codex / Claude Code agents, run the printed
-   `margin computer --server https://margin.example.com --secret …` on the user's laptop (or any machine
-   where those CLIs are installed and signed in). Add agents from there with
+5. **Links**: `sudo journalctl -u margin -n 20` shows the invite link.
+6. Agents run on the user's own machines, not the VPS. Copy `/var/lib/margin/data/computer.json` (it holds
+   the computer secret) to the user's laptop with `scp`, keep it mode 600, and run there:
+   `margin computer --server https://margin.example.com --secret-file computer.json`
+   (on any machine where Codex / Claude Code are installed and signed in). Add agents from there with
    `margin agents add … --server https://margin.example.com --key-file <file with the access key>`.
 
 Backups: copy `/var/lib/margin/data` (plain files). Remove: `sudo systemctl disable --now margin`, then delete `/var/lib/margin`.

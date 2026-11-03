@@ -27,8 +27,10 @@ export async function startServer({ port = 4321, host, dataDir = path.join(root,
   const hub = new Hub(store, { log });
   if (withSeed && hub.spaces.size === 0) seed(hub);
 
+  // The secret that lets a computer host this hub's agents: readable by this user only.
   const computerFile = path.join(dataDir, 'computer.json');
-  if (!fs.existsSync(computerFile)) fs.writeFileSync(computerFile, JSON.stringify({ secret: crypto.randomBytes(24).toString('hex') }, null, 2));
+  if (!fs.existsSync(computerFile)) fs.writeFileSync(computerFile, JSON.stringify({ secret: crypto.randomBytes(24).toString('hex') }, null, 2), { mode: 0o600 });
+  fs.chmodSync(computerFile, 0o600);
   const computerSecret = JSON.parse(fs.readFileSync(computerFile, 'utf8')).secret;
 
   const app = express();
@@ -110,9 +112,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   let computer = null;
   if (!process.argv.includes('--no-computer')) {
     // Like Raft Computer: a separate process on this machine that hosts the local agents.
-    computer = spawn(process.execPath, [path.join(root, 'bin', 'margin.js'), 'computer', '--server', srv.url, '--secret', srv.computerSecret], {
+    computer = spawn(process.execPath, [path.join(root, 'bin', 'margin.js'), 'computer', '--server', srv.url], {
       stdio: 'inherit',
-      env: process.env,
+      env: { ...process.env, MARGIN_COMPUTER_SECRET: srv.computerSecret }, // not argv: other users can read that with ps
     });
   }
   console.log(`\n  Margin is running → ${srv.url}\n`);

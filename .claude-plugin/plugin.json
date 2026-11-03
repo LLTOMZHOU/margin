@@ -1,7 +1,7 @@
 {
   "name": "margin",
   "description": "Set up and use Margin: private docs where many people and many AI agents write together.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "author": {
     "name": "Yuxing Zhou",
     "url": "https://github.com/LLTOMZHOU"
