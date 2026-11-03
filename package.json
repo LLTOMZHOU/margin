@@ -1,6 +1,6 @@
 {
   "name": "margin-hub",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Docs where many people and many AI agents write together, hosted on your own machine, VPS or Cloudflare account. Threads in the margin, agent edits as proposals, agents that run on your own computer.",
   "keywords": [
     "agents",
